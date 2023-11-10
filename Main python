@@ -1,30 +1,49 @@
 from flask import Flask, redirect, url_for, render_template, request, session, flash
 from datetime import timedelta
-import sqlalchemy 
+from flask_sqlalchemy import SQLAlchemy
 
 app = Flask(__name__)
 app.secret_key = "hello"
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.sqlite3'
+app.config["SQLALCHEMY_TRACK_MODIFICATION"] = False
 app.permanent_session_lifetime = timedelta(minutes=5)
 
-@app.route("/")
-def home():
-    return render_template("index.html")
+db = SQLAlchemy(app)
 
-@app.route("/login", methods=["POST", "GET"])
-def login():
-    if request.method == "POST":
-        session.permanent = True
-        user = request.form["nm"]
-        session["user"] = user
+class users(db.Model):
+    _id = db.Column("id", db.Integer, primary_key=True)
+    name = db.Column(db.String(100))
+    email = db.Column(db.String(100))
+    mdp = db.Column(db.String(100))
 
-        flash("Login succesfull")
-        return redirect(url_for("user"))
-    else:
-        if "user" in session :
-            flash("Already logged in")
-            return redirect(url_for("user"))
-        
-        return render_template("login.html")
+    def __init__(self, name, email, mdp):
+        self.name = name
+        self.email = email
+        self.mdp = mdp
+
+
+
+@app.route("/", methods=["POST", "GET"])
+def login():                                      # Cette route gère à la fois les requêtes POST et GET pour l'URL "/login".
+    if request.method == "POST":                  # Si la méthode de la requête est POST, cela signifie que le formulaire a été soumis.
+        session.permanent = True                  # On définit la session comme permanente, ce qui signifie qu'elle durera même après la fermeture du navigateur.
+        user = request.form["nm"]                 # On récupère la valeur du champ de formulaire avec le nom "nm" et la stocke dans la variable "user".
+        session["user"] = user                    # On stocke la valeur de "user" dans la session sous la clé "user".
+        found_user = users.query.filter_by(name=user).first()   # On recherche un utilisateur dans la base de données dont le nom correspond à "user".
+        if found_user:                            # Si un utilisateur correspondant est trouvé, on récupère son email.
+            session["email"] = found_user.email   # On stocke l'email de l'utilisateur dans la session sous la clé "email".
+        else:                                     # Si aucun utilisateur correspondant n'est trouvé, on crée un nouvel utilisateur.
+            usr = users(user, "")                 # On crée un nouvel utilisateur avec le nom "user" et un email vide.
+            db.session.add(usr)                   # On ajoute cet utilisateur à la base de données.
+            db.session.commit()                   # On commit les changements pour enregistrer l'utilisateur dans la base de données.
+        flash("Login Succesful !")                # On affiche un message flash pour informer l'utilisateur que la connexion a réussi.
+        return redirect(url_for("user"))          # On redirige l'utilisateur vers la page "user" après une connexion réussie.
+    else:                                         # Si la méthode de la requête n'est pas POST, c'est probablement une requête GET pour afficher la page de connexion.
+        if "user" in session:                     # Si l'utilisateur est déjà connecté (la clé "user" existe dans la session), on affiche un message flash.
+            flash("Already Logged in!")
+            return redirect(url_for("user"))      # On redirige l'utilisateur vers la page "user" car il est déjà connecté.
+        return render_template("login.html")      # Si l'utilisateur n'est pas déjà connecté, on renvoie la page de connexion (généralement un formulaire de connexion).
+
 
 @app.route("/user", methods=["POST", "GET"])
 def user():
@@ -35,23 +54,31 @@ def user():
         if request.method == "POST":
             email = request.form["email"]
             session["email"] = email
+            found_user = users.query.filter_by(name=user).first()
+            found_user.email = email
+            db.session.commit()
+            flash("Email was saved")
         else:
             if "email" in session:
                 email = session["email"]
 
-        return render_template("user.html", email = email)
+        return render_template("user.html", email=email)
     else:
         flash("You are not logged in")
         return redirect(url_for("login"))
-    
+
+
+
+
 @app.route("/logout")
 def logout():
-    user = session["user"]
+    flash("You have been logged out")
     session.pop("user", None)
     session.pop("email", None)
-    flash(f"{user}, you have been logged out", "info")
     return redirect(url_for("login"))
 
 
 if __name__ == "__main__":
+    with app.app_context():
+        db.create_all()
     app.run(debug=True)
