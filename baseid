@@ -1,0 +1,23 @@
+{% extends "baseid.html" %}
+{% block title %}id Page{% endblock %}
+{% block content %}
+
+<form action="{{ url_for('id') }}" method="post">
+    <p><br>Nom d'utilisateur:</p>
+    <p><input type="text" name="nom"/></p>
+    <p>Mot de passe:</p>
+    <p><input type="password" name="mdp"/></p>
+    <p><input type="submit" value="Entrer"/></p>
+</form>
+
+{% with messages = get_flashed_messages() %}
+    {% if messages %}
+        <ul style="list-style: none; padding: 10px; margin: 10px 0; border: 1px solid #ccc; background-color: #f8d7da; color: #721c24;">
+            {% for message in messages %}
+                <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+{% endwith %}
+
+{% endblock %}
